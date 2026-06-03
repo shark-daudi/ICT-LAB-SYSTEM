@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% block title %}Checkin Asset{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-primary text-white">Checkin Asset</div>
+  <div class="card-body">
+    <form id="checkin-form">
+      <div class="mb-3"><label>Asset Serial</label><input type="text" id="asset_serial" class="form-control" list="asset-datalist" autocomplete="off" required><datalist id="asset-datalist"></datalist></div>
+      <div id="assignment-details" class="alert alert-info mt-2 d-none"></div>
+      <input type="hidden" id="assignment_id">
+      <div class="mb-3"><label>Returned by</label><select id="returned_by" class="form-select" required>{% for u in all_users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label>Received back by</label><select id="received_back_by" class="form-select" required>{% for s in staff %}<option value="{{ s.id }}">{{ s.username }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label>Return notes (condition)</label><textarea id="return_purpose" class="form-control"></textarea></div>
+      <button type="submit" class="btn btn-primary" id="checkin-btn" disabled>Checkin</button>
+    </form>
+  </div>
+</div>
+<script>
+  let activeAssignmentId = null;
+  const serialInput = document.getElementById('asset_serial');
+  const detailsDiv = document.getElementById('assignment-details');
+  const assignIdField = document.getElementById('assignment_id');
+  const checkinBtn = document.getElementById('checkin-btn');
+
+  // autocomplete
+  const datalist = document.getElementById('asset-datalist');
+  serialInput.addEventListener('input', async () => {
+    const q = serialInput.value.trim();
+    if (q.length < 2) return;
+    const resp = await fetch(`/api/assets/search?q=${encodeURIComponent(q)}`);
+    const assets = await resp.json();
+    datalist.innerHTML = '';
+    assets.forEach(a => { const opt = document.createElement('option'); opt.value = a.serial; datalist.appendChild(opt); });
+  });
+
+  serialInput.addEventListener('change', async () => {
+    const serial = serialInput.value.trim();
+    if (!serial) return;
+    try {
+      const resp = await fetch(`/api/asset/active?serial=${encodeURIComponent(serial)}`);
+      if (!resp.ok) { detailsDiv.classList.add('d-none'); checkinBtn.disabled = true; showToast('No active assignment', 'warning'); return; }
+      const data = await resp.json();
+      activeAssignmentId = data.assignment_id;
+      assignIdField.value = activeAssignmentId;
+      detailsDiv.innerHTML = `<strong>Asset:</strong> ${data.asset_name}<br><strong>Borrower:</strong> ${data.received_by_name}<br><strong>Checked out:</strong> ${data.checked_out_at}<br><strong>Purpose:</strong> ${data.purpose}`;
+      detailsDiv.classList.remove('d-none');
+      checkinBtn.disabled = false;
+      // prefill returned_by with the original borrower
+      const returnedBySelect = document.getElementById('returned_by');
+      for (let i = 0; i < returnedBySelect.options.length; i++) {
+        if (returnedBySelect.options[i].value == data.received_by_id) { returnedBySelect.selectedIndex = i; break; }
+      }
+    } catch (err) { detailsDiv.classList.add('d-none'); checkinBtn.disabled = true; }
+  });
+
+  document.getElementById('checkin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = checkinBtn;
+    btn.disabled = true; btn.innerHTML = 'Processing...';
+    try {
+      const res = await fetch('/api/checkin', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          assignment_id: assignIdField.value,
+          returned_by_id: document.getElementById('returned_by').value,
+          received_back_by_id: document.getElementById('received_back_by').value,
+          return_purpose: document.getElementById('return_purpose').value
+        })
+      });
+      const data = await res.json();
+      if (res.ok) { showToast('Checkin successful', 'success'); document.getElementById('checkin-form').reset(); detailsDiv.classList.add('d-none'); checkinBtn.disabled = true; }
+      else showToast(data.error || 'Error', 'danger');
+    } catch (err) { showToast('Network error', 'danger'); }
+    finally { btn.disabled = false; btn.innerHTML = 'Checkin'; }
+  });
+</script>
+{% endblock %}

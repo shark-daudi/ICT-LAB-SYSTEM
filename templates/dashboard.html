@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Dashboard</h3>
+  <button id="refreshDashboard" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat"></i> Refresh</button>
+</div>
+<div class="row" id="dashboard-cards"></div>
+<div class="row mt-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">Recent Checkouts (Last 5)</div>
+      <div id="recent-checkouts-list" class="list-group list-group-flush"></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">Recent Checkins (Last 5)</div>
+      <div id="recent-checkins-list" class="list-group list-group-flush"></div>
+    </div>
+  </div>
+</div>
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-warning text-dark">Low Stock Alerts</div>
+      <div id="low-stock-list" class="list-group list-group-flush"></div>
+    </div>
+  </div>
+</div>
+<script>
+  async function loadDashboard() {
+    try {
+      const response = await fetch('/api/dashboard-stats');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const res = await response.json();
+      document.getElementById('dashboard-cards').innerHTML = `
+        <div class="col-md-3"><div class="card text-white bg-primary"><div class="card-body"><h5>Total Assets</h5><h2>${res.total_assets ?? 0}</h2></div></div></div>
+        <div class="col-md-3"><div class="card text-white bg-warning"><div class="card-body"><h5>Checked Out</h5><h2>${res.checked_out ?? 0}</h2></div></div></div>
+        <div class="col-md-3"><div class="card text-white bg-danger"><div class="card-body"><h5>Overdue</h5><h2>${res.overdue ?? 0}</h2></div></div></div>
+        <div class="col-md-3"><div class="card text-white bg-info"><div class="card-body"><h5>Low Stock</h5><h2>${res.low_stock_count ?? 0}</h2></div></div></div>
+      `;
+
+      // Recent checkouts
+      const checkoutHtml = (res.recent_checkouts || []).map(r => `
+        <div class="list-group-item">
+          <strong>${escapeHtml(r.asset_name)}</strong> → ${escapeHtml(r.borrower)}<br>
+          <small class="text-muted">${r.checkout_date}</small>
+          ${r.status === 'returned' ? '<span class="badge bg-success ms-2">returned</span>' : '<span class="badge bg-warning ms-2">active</span>'}
+        </div>
+      `).join('') || '<div class="list-group-item text-muted">No checkouts yet</div>';
+      document.getElementById('recent-checkouts-list').innerHTML = checkoutHtml;
+
+      // Recent checkins
+      const checkinHtml = (res.recent_checkins || []).map(r => `
+        <div class="list-group-item">
+          <strong>${escapeHtml(r.asset_name)}</strong> returned by ${escapeHtml(r.returned_by)}<br>
+          <small class="text-muted">${r.checkin_date}</small>
+        </div>
+      `).join('') || '<div class="list-group-item text-muted">No checkins yet</div>';
+      document.getElementById('recent-checkins-list').innerHTML = checkinHtml;
+
+      // Low stock
+      const lowHtml = (res.low_stock_assets || []).map(a => `
+        <div class="list-group-item">${escapeHtml(a.name)} (${escapeHtml(a.serial_number)}) – Stock: ${a.current_stock} / Reorder: ${a.reorder_level}</div>
+      `).join('') || '<div class="list-group-item text-muted">No low stock items</div>';
+      document.getElementById('low-stock-list').innerHTML = lowHtml;
+    } catch (err) {
+      console.error(err);
+      document.getElementById('dashboard-cards').innerHTML = `<div class="alert alert-danger">Failed to load dashboard. Make sure you are logged in as Admin or Lab Staff.</div>`;
+    }
+  }
+  function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m==='&') return '&amp;'; if (m==='<') return '&lt;'; if (m==='>') return '&gt;'; return m; }); }
+  loadDashboard();
+  document.getElementById('refreshDashboard').addEventListener('click', loadDashboard);
+</script>
+{% endblock %}

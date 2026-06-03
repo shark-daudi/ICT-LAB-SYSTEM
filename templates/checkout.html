@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% block title %}Checkout Asset{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-primary text-white">Checkout Asset</div>
+  <div class="card-body">
+    <form id="checkout-form">
+      <div class="mb-3"><label>Asset Serial</label><input type="text" id="asset_serial" class="form-control" list="asset-datalist" autocomplete="off" required><datalist id="asset-datalist"></datalist></div>
+      <div class="mb-3"><label>Handed out by</label><select id="handed_out_by" class="form-select" required>{% for s in staff %}<option value="{{ s.id }}">{{ s.username }}</option>{% endfor %}</select></div>
+      <div class="mb-3"><label>Received by</label><select id="received_by" class="form-select" required>
+        {% for cat, users in groups.items() %}<optgroup label="{{ cat|replace('_',' ')|title }}">{% for u in users %}<option value="{{ u.id }}">{{ u.username }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select></div>
+      <div class="mb-3"><label>Purpose</label><textarea id="purpose" class="form-control" required></textarea></div>
+      <div class="mb-3"><label>Due date (optional)</label><input type="date" id="due_date" class="form-control"></div>
+      <button type="submit" class="btn btn-primary" id="checkout-btn">Checkout</button>
+    </form>
+  </div>
+</div>
+<script>
+  const serialInput = document.getElementById('asset_serial');
+  const datalist = document.getElementById('asset-datalist');
+  serialInput.addEventListener('input', async () => {
+    const q = serialInput.value.trim();
+    if (q.length < 2) return;
+    const resp = await fetch(`/api/assets/search?q=${encodeURIComponent(q)}`);
+    const assets = await resp.json();
+    datalist.innerHTML = '';
+    assets.forEach(a => { const opt = document.createElement('option'); opt.value = a.serial; datalist.appendChild(opt); });
+  });
+  document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('checkout-btn');
+    btn.disabled = true; btn.innerHTML = 'Processing...';
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          asset_serial: serialInput.value,
+          handed_out_by_id: document.getElementById('handed_out_by').value,
+          received_by_id: document.getElementById('received_by').value,
+          purpose: document.getElementById('purpose').value,
+          due_date: document.getElementById('due_date').value
+        })
+      });
+      const data = await res.json();
+      if (res.ok) { showToast('Checkout successful', 'success'); document.getElementById('checkout-form').reset(); }
+      else showToast(data.error || 'Error', 'danger');
+    } catch (err) { showToast('Network error', 'danger'); }
+    finally { btn.disabled = false; btn.innerHTML = 'Checkout'; }
+  });
+</script>
+{% endblock %}

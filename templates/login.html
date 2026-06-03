@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block title %}Login{% endblock %}
+{% block login_content %}
+<div class="container d-flex justify-content-center align-items-center" style="min-height: 100vh;">
+  <div class="card" style="width: 400px;">
+    <div class="card-header bg-primary text-white">Login</div>
+    <div class="card-body">
+      <form method="POST">
+        <div class="mb-3"><label>Username</label><input name="username" class="form-control" required></div>
+        <div class="mb-3"><label>Password</label><input type="password" name="password" class="form-control" required></div>
+        <button type="submit" class="btn btn-primary w-100">Login</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

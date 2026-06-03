@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<ul class="nav nav-tabs" id="reportTabs" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#active">Active Loans</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#overdue">Overdue</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#history">History</button></li>
+</ul>
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="active"><div class="table-responsive"><table class="table" id="active-table"><thead><tr><th>Asset</th><th>Serial</th><th>Borrower</th><th>Category</th><th>Checkout Date</th><th>Due Date</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="tab-pane fade" id="overdue"><div class="table-responsive"><table class="table" id="overdue-table"><thead><tr><th>Asset</th><th>Serial</th><th>Borrower</th><th>Due Date</th><th>Days Overdue</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="tab-pane fade" id="history">
+    <div class="row mb-2"><div class="col-md-3"><input type="text" id="histAsset" class="form-control" placeholder="Asset ID"></div><div class="col-md-3"><input type="text" id="histUser" class="form-control" placeholder="User ID"></div><div class="col-md-3"><select id="histCategory" class="form-select"><option value="">All categories</option><option>teacher</option><option>student</option><option>non_teaching_staff</option><option>guest</option></select></div><div class="col-md-3"><button id="refreshHistory" class="btn btn-primary">Refresh</button></div></div>
+    <div class="table-responsive"><table class="table" id="history-table"><thead><tr><th>Asset</th><th>Serial</th><th>Borrower</th><th>Category</th><th>Checkout</th><th>Checkin</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</div>
+<script>
+  async function loadActive() { const r=await fetch('/api/reports/active'); const data=await r.json(); document.querySelector('#active-table tbody').innerHTML=data.map(a=>`<tr><td>${a.asset_name}</td><td>${a.serial}</td><td>${a.borrower}</td><td>${a.category}</td><td>${a.checkout_date}</td><td>${a.due_date||''}</td></tr>`).join(''); }
+  async function loadOverdue() { const r=await fetch('/api/reports/overdue'); const data=await r.json(); document.querySelector('#overdue-table tbody').innerHTML=data.map(a=>`<tr class="table-danger"><td>${a.asset_name}</td><td>${a.serial}</td><td>${a.borrower}</td><td>${a.due_date}</td><td>${a.days_overdue}</td></tr>`).join(''); }
+  async function loadHistory() {
+    const asset = document.getElementById('histAsset').value; const user = document.getElementById('histUser').value; const cat = document.getElementById('histCategory').value;
+    let url = `/api/reports/history?page=1&per_page=50`; if(asset) url+=`&asset_id=${asset}`; if(user) url+=`&user_id=${user}`; if(cat) url+=`&category=${cat}`;
+    const r=await fetch(url); const data=await r.json(); document.querySelector('#history-table tbody').innerHTML=data.items.map(a=>`<tr><td>${a.asset_name}</td><td>${a.serial}</td><td>${a.borrower}</td><td>${a.category}</td><td>${a.checkout_date}</td><td>${a.checked_in||''}</td><td>${a.status}</td></tr>`).join('');
+  }
+  document.getElementById('refreshHistory').onclick = loadHistory;
+  loadActive(); loadOverdue(); loadHistory();
+</script>
+{% endblock %}

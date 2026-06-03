@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block title %}My Assets{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-primary text-white"><i class="bi bi-laptop"></i> Assets Currently Checked Out to You</div>
+  <div class="card-body">
+    {% if assignments %}
+    <div class="table-responsive"><table class="table table-bordered">
+      <thead><tr><th>Asset</th><th>Serial</th><th>Checkout Date</th><th>Due Date</th><th>Purpose</th></tr></thead>
+      <tbody>{% for a in assignments %}<tr><td>{{ a.asset.name }}</td><td>{{ a.asset.serial_number }}</td><td>{{ a.checked_out_at.strftime('%Y-%m-%d %H:%M') }}</td><td>{{ a.expected_return.strftime('%Y-%m-%d') if a.expected_return else 'Not set' }}</td><td>{{ a.purpose }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="alert alert-info">You have no assets checked out.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

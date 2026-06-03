@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+{% block title %}Assets{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Asset Registry</span>
+    {% if 'can_manage_assets' in current_user.role.get_permissions() %}
+    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#assetModal" onclick="openAddModal()"><i class="bi bi-plus"></i> Add Asset</button>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <div class="row mb-3">
+      <div class="col-md-6"><input type="text" id="searchInput" class="form-control" placeholder="Search by serial or name..."></div>
+      <div class="col-md-3"><select id="filterSelect" class="form-select"><option value="">All assets</option><option value="lowstock">Low stock only</option></select></div>
+      <div class="col-md-3"><div id="pagination" class="d-flex justify-content-end"></div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-bordered" id="assets-table"><thead><tr><th>Serial</th><th>Name</th><th>Model</th><th>Stock</th><th>Reorder</th><th>Actions</th></tr></thead><tbody id="assets-tbody"></tbody></table></div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="assetModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="modalTitle">Add Asset</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+  <input type="hidden" id="assetId">
+  <div class="mb-2"><label>Serial Number*</label><input id="assetSerial" class="form-control" required></div>
+  <div class="mb-2"><label>Name*</label><input id="assetName" class="form-control" required></div>
+  <div class="mb-2"><label>Model</label><input id="assetModel" class="form-control"></div>
+  <div class="mb-2"><label>Purchase Date</label><input id="assetPurchase" type="date" class="form-control"></div>
+  <div class="mb-2"><label>Warranty End</label><input id="assetWarranty" type="date" class="form-control"></div>
+  <div class="mb-2"><label>Current Stock</label><input id="assetStock" type="number" class="form-control" value="1"></div>
+  <div class="mb-2"><label>Reorder Level</label><input id="assetReorder" type="number" class="form-control" value="0"></div>
+  <div class="mb-2"><label>Location</label><input id="assetLocation" class="form-control"></div>
+</div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="saveAssetBtn">Save</button></div></div></div></div>
+
+<script>
+  let currentPage = 1;
+  let currentSearch = '';
+  let currentFilter = '';
+  function loadAssets() {
+    const url = `/api/assets?page=${currentPage}&q=${encodeURIComponent(currentSearch)}&filter=${currentFilter}`;
+    fetch(url).then(r=>r.json()).then(data => {
+      const tbody = document.getElementById('assets-tbody');
+      tbody.innerHTML = data.items.map(a => `
+        <tr>
+          <td>${escapeHtml(a.serial_number)}</td>
+          <td>${escapeHtml(a.name)}</td>
+          <td>${escapeHtml(a.model || '')}</td>
+          <td>${a.current_stock}</td>
+          <td>${a.reorder_level}</td>
+          <td>
+            <button class="btn btn-sm btn-warning" onclick="editAsset(${a.id})"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAsset(${a.id})"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+      `).join('');
+      const pagination = document.getElementById('pagination');
+      pagination.innerHTML = '';
+      for (let i=1; i<=data.pages; i++) {
+        const btn = document.createElement('button');
+        btn.className = `btn btn-sm ${i===data.page?'btn-primary':'btn-outline-secondary'} mx-1`;
+        btn.innerText = i;
+        btn.onclick = () => { currentPage = i; loadAssets(); };
+        pagination.appendChild(btn);
+      }
+    });
+  }
+  function escapeHtml(str) { if(!str) return ''; return str.replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+  let editingId = null;
+  function openAddModal() { editingId = null; document.getElementById('modalTitle').innerText = 'Add Asset'; document.getElementById('assetId').value = ''; document.querySelectorAll('#assetModal input').forEach(i=>i.value=''); document.getElementById('assetStock').value='1'; }
+  function editAsset(id) {
+    fetch(`/api/assets?q=`).then(r=>r.json()).then(data => {
+      const asset = data.items.find(a=>a.id==id);
+      if(asset){
+        editingId = id;
+        document.getElementById('modalTitle').innerText = 'Edit Asset';
+        document.getElementById('assetId').value = asset.id;
+        document.getElementById('assetSerial').value = asset.serial_number;
+        document.getElementById('assetName').value = asset.name;
+        document.getElementById('assetModel').value = asset.model || '';
+        document.getElementById('assetPurchase').value = asset.purchase_date || '';
+        document.getElementById('assetWarranty').value = asset.warranty_end || '';
+        document.getElementById('assetStock').value = asset.current_stock;
+        document.getElementById('assetReorder').value = asset.reorder_level;
+        document.getElementById('assetLocation').value = asset.location || '';
+        new bootstrap.Modal(document.getElementById('assetModal')).show();
+      }
+    });
+  }
+  document.getElementById('saveAssetBtn').onclick = async () => {
+    const data = {
+      serial_number: document.getElementById('assetSerial').value,
+      name: document.getElementById('assetName').value,
+      model: document.getElementById('assetModel').value,
+      purchase_date: document.getElementById('assetPurchase').value,
+      warranty_end: document.getElementById('assetWarranty').value,
+      current_stock: parseInt(document.getElementById('assetStock').value),
+      reorder_level: parseInt(document.getElementById('assetReorder').value),
+      location: document.getElementById('assetLocation').value
+    };
+    const id = document.getElementById('assetId').value;
+    const url = id ? `/api/assets/${id}` : '/api/assets';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+    if(res.ok) { bootstrap.Modal.getInstance(document.getElementById('assetModal')).hide(); loadAssets(); showToast('Asset saved', 'success'); }
+    else { const err = await res.json(); showToast(err.error || 'Error', 'danger'); }
+  };
+  async function deleteAsset(id) {
+    if(confirm('Delete this asset? It will be removed only if no assignments exist.')){
+      const res = await fetch(`/api/assets/${id}`, {method:'DELETE'});
+      if(res.ok) { loadAssets(); showToast('Asset deleted', 'success'); }
+      else { const err = await res.json(); showToast(err.error || 'Cannot delete', 'danger'); }
+    }
+  }
+  document.getElementById('searchInput').addEventListener('input', () => { currentSearch = document.getElementById('searchInput').value; currentPage=1; loadAssets(); });
+  document.getElementById('filterSelect').addEventListener('change', () => { currentFilter = document.getElementById('filterSelect').value; currentPage=1; loadAssets(); });
+  loadAssets();
+</script>
+{% endblock %}
